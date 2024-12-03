@@ -104,9 +104,18 @@ jobs:
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
 
-          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=main"
+          # Fetch the GitLab MR template from the repository
+          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
           TEMPLATE_CONTENT=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" "${TEMPLATE_URL}")
-          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed '1s/^Add your description here//')
+
+          # Remove the first line ("**Add your description here**")
+          TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
+
+          # Prepare the GitHub PR description and the GitLab template
+          FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---${TEMPLATE_CONTENT}"
+
+          # Escape only necessary characters: backslashes and quotes
+          FULL_DESCRIPTION_ESCAPED="${FULL_DESCRIPTION//$'\n'/\\n}"
 
           if [ "${PR_DRAFT}" = "true" ]; then
             MR_TITLE="Draft: ${PR_TITLE}"
@@ -115,9 +124,6 @@ jobs:
             MR_TITLE="${PR_TITLE}"
             WIP="false"
           fi
-
-          FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
-          echo ${FULL_DESCRIPTION}
 
           # Create MR on GitLab if it doesn't exist
           RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
@@ -190,7 +196,7 @@ jobs:
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
 
           # Fetch the GitLab MR template from the repository
-          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=main"
+          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
           TEMPLATE_CONTENT=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" "${TEMPLATE_URL}")
 
           # Remove the first line ("**Add your description here**")
@@ -201,9 +207,6 @@ jobs:
 
           # Escape only necessary characters: backslashes and quotes
           FULL_DESCRIPTION_ESCAPED="${FULL_DESCRIPTION//$'\n'/\\n}"
-
-          # Debug the final description (without extra escapes for \n)
-          echo "Final Full Description: ${FULL_DESCRIPTION_ESCAPED}"
 
           # Set the MR title and WIP status based on PR draft state
           if [ "${PR_DRAFT}" = "true" ]; then
@@ -228,8 +231,6 @@ jobs:
             }
           EOF
             )
-
-            echo "Final JSON Payload: ${JSON_PAYLOAD}"
 
             # Send the update request to GitLab
             RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
