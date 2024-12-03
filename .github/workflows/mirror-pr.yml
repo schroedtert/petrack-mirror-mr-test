@@ -119,6 +119,7 @@ jobs:
 
           # Escape only necessary characters: backslashes and quotes
           FULL_DESCRIPTION_ESCAPED="${FULL_DESCRIPTION//$'\n'/\\n}"
+          echo "${FULL_DESCRIPTION_ESCAPED}"
 
           if [ "${PR_DRAFT}" = "true" ]; then
             MR_TITLE="Draft: ${PR_TITLE}"
@@ -128,7 +129,6 @@ jobs:
             WIP="false"
           fi
 
-          # Create MR on GitLab if it doesn't exist
           RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
             --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
             --header "Content-Type: application/json" \
@@ -136,7 +136,7 @@ jobs:
               "source_branch": "'"${PR_SOURCE_BRANCH}"'",
               "target_branch": "'"${PR_TARGET_BRANCH}"'",
               "title": "'"${MR_TITLE}"'",
-              "description": "${FULL_DESCRIPTION}"
+              "description": "${FULL_DESCRIPTION_ESCAPED}"
             }' \
             --request POST "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests")
 
