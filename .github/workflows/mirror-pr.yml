@@ -16,6 +16,9 @@ on:
         converted_to_draft,
         edited,
       ]
+env:
+  GITLAB_PROJECT_ID: 64985430
+
 jobs:
   check_permission:
     runs-on: ubuntu-latest
@@ -91,7 +94,7 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           FORCE_PUSH: "true"
           GITLAB_HOSTNAME: "gitlab.com"
-          GITLAB_PROJECT_ID: "64985430"
+          GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Handle PR opened
@@ -105,7 +108,7 @@ jobs:
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
 
           # Fetch the GitLab MR template from the repository
-          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
+          TEMPLATE_URL="https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
           TEMPLATE_CONTENT=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" "${TEMPLATE_URL}")
 
           # Remove the first line ("**Add your description here**")
@@ -135,7 +138,7 @@ jobs:
               "title": "'"${MR_TITLE}"'",
               "description": "'"${FULL_DESCRIPTION}"'"
             }' \
-            --request POST "https://gitlab.com/api/v4/projects/64985430/merge_requests")
+            --request POST "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests")
 
           HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
@@ -148,14 +151,14 @@ jobs:
         run: |
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
           MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-            "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
+            "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
           if [ -n "${MR_ID}" ]; then
             RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
               --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
               --header "Content-Type: application/json" \
               --data '{"state_event": "close"}' \
-              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
+              --request PUT "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests/${MR_ID}")
 
             HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
@@ -169,14 +172,14 @@ jobs:
         run: |
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
           MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-            "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
+            "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
           if [ -n "${MR_ID}" ]; then
             RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
               --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
               --header "Content-Type: application/json" \
               --data '{"state_event": "reopen"}' \
-              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
+              --request PUT "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests/${MR_ID}")
 
             HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
@@ -196,7 +199,7 @@ jobs:
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
 
           # Fetch the GitLab MR template from the repository
-          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
+          TEMPLATE_URL="https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
           TEMPLATE_CONTENT=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" "${TEMPLATE_URL}")
 
           # Remove the first line ("**Add your description here**")
@@ -219,7 +222,7 @@ jobs:
 
           # Check if the MR exists in GitLab
           MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-            "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
+            "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
           if [ -n "${MR_ID}" ]; then
             # Prepare the payload for updating the MR
@@ -237,7 +240,7 @@ jobs:
               --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
               --header "Content-Type: application/json" \
               --data "${JSON_PAYLOAD}" \
-              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
+              --request PUT "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests/${MR_ID}")
 
             echo "Response: ${RESPONSE}"
 
