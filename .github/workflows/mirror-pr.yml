@@ -136,7 +136,7 @@ jobs:
               "source_branch": "'"${PR_SOURCE_BRANCH}"'",
               "target_branch": "'"${PR_TARGET_BRANCH}"'",
               "title": "'"${MR_TITLE}"'",
-              "description": "'"${FULL_DESCRIPTION}"'"
+              "description": "${FULL_DESCRIPTION}"
             }' \
             --request POST "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests")
 
