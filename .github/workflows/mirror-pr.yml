@@ -9,6 +9,7 @@ on:
     types:
       [
         opened,
+        closed,
         synchronize,
         reopened,
         ready_for_review,
@@ -93,7 +94,7 @@ jobs:
           GITLAB_PROJECT_ID: "64985430"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create or Update Merge Request on GitLab
+      - name: Create, Update, Reopen, or Close Merge Request on GitLab
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
@@ -101,6 +102,7 @@ jobs:
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
+          PR_STATE="${{ github.event.pull_request.state }}"  # To check if PR is open or closed
 
           if [ "$PR_DRAFT" = "true" ]; then
             MR_TITLE="Draft: $PR_TITLE"
@@ -114,49 +116,82 @@ jobs:
           MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
             "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=$PR_SOURCE_BRANCH" | jq '.[0].iid')
 
-          if [ -z "$MR_ID" ] || [ "$MR_ID" == "null" ]; then
-            # MR doesn't exist, create it
-            JSON_PAYLOAD=$(cat <<EOF
-            {
-              "source_branch": "$PR_SOURCE_BRANCH",
-              "target_branch": "$PR_TARGET_BRANCH",
-              "title": "$MR_TITLE",
-              "description": "Automatically created from GitHub PR: $PR_URL\n\n$PR_DESCRIPTION"
-            }
-          EOF
-            )
+          if [ "$PR_STATE" == "closed" ]; then
+            # PR is closed, close the MR on GitLab
+            if [ -n "$MR_ID" ]; then
+              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+                --header "Content-Type: application/json" \
+                --data '{"state_event": "close"}' \
+                --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/$MR_ID")
 
-            RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
-              --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-              --header "Content-Type: application/json" \
-              --data "$JSON_PAYLOAD" \
-              --request POST "https://gitlab.com/api/v4/projects/64985430/merge_requests")
+              HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-            HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+              if [ "$HTTP_STATUS" -ne 200 ]; then
+                exit 1
+              fi
+            fi
+          elif [ "$PR_STATE" == "open" ]; then
+            # PR is reopened or is still open, ensure MR is not closed
+            if [ -n "$MR_ID" ]; then
+              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+                --header "Content-Type: application/json" \
+                --data '{"state_event": "reopen"}' \
+                --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/$MR_ID")
 
-            if [ "$HTTP_STATUS" -ne 201 ]; then
-              exit 1
+              HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+              if [ "$HTTP_STATUS" -ne 200 ]; then
+                exit 1
+              fi
             fi
           else
-            # MR exists, update it
-            JSON_PAYLOAD=$(cat <<EOF
-            {
-              "title": "$MR_TITLE",
-              "description": "Automatically updated from GitHub PR: $PR_URL\n\n$PR_DESCRIPTION",
-              "work_in_progress": $WIP
-            }
+            # PR is not closed or open, continue with create or update logic (e.g., draft or other state)
+            if [ -z "$MR_ID" ] || [ "$MR_ID" == "null" ]; then
+              # MR doesn't exist, create it
+              JSON_PAYLOAD=$(cat <<EOF
+              {
+                "source_branch": "$PR_SOURCE_BRANCH",
+                "target_branch": "$PR_TARGET_BRANCH",
+                "title": "$MR_TITLE",
+                "description": "Automatically created from GitHub PR: $PR_URL\n\n$PR_DESCRIPTION"
+              }
           EOF
-            )
+              )
 
-            RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
-              --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-              --header "Content-Type: application/json" \
-              --data "$JSON_PAYLOAD" \
-              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/$MR_ID")
+              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+                --header "Content-Type: application/json" \
+                --data "$JSON_PAYLOAD" \
+                --request POST "https://gitlab.com/api/v4/projects/64985430/merge_requests")
 
-            HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+              HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-            if [ "$HTTP_STATUS" -ne 200 ]; then
-              exit 1
+              if [ "$HTTP_STATUS" -ne 201 ]; then
+                exit 1
+              fi
+            else
+              # MR exists, update it
+              JSON_PAYLOAD=$(cat <<EOF
+              {
+                "title": "$MR_TITLE",
+                "description": "Automatically updated from GitHub PR: $PR_URL\n\n$PR_DESCRIPTION",
+                "work_in_progress": $WIP
+              }
+          EOF
+              )
+
+              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+                --header "Content-Type: application/json" \
+                --data "$JSON_PAYLOAD" \
+                --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/$MR_ID")
+
+              HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+              if [ "$HTTP_STATUS" -ne 200 ]; then
+                exit 1
+              fi
             fi
           fi
