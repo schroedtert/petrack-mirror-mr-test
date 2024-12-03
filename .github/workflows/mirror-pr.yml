@@ -94,7 +94,8 @@ jobs:
           GITLAB_PROJECT_ID: "64985430"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create, Update, Reopen, or Close Merge Request on GitLab
+      - name: Handle PR opened
+        if: github.event.action == 'opened'
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
@@ -102,14 +103,10 @@ jobs:
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
-          PR_STATE="${{ github.event.pull_request.state }}"  # To check if PR is open or closed
 
-          # Fetch the GitLab MR template from the repository (updated path)
           TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=main"
           TEMPLATE_CONTENT=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" "${TEMPLATE_URL}")
-
-          # Remove the first line if it contains "Add your description here"
-          # TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed '1s/^Add your description here//')
+          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed '1s/^Add your description here//')
 
           if [ "${PR_DRAFT}" = "true" ]; then
             MR_TITLE="Draft: ${PR_TITLE}"
@@ -119,89 +116,117 @@ jobs:
             WIP="false"
           fi
 
-          # Combine GitHub PR description with the GitLab template (after removing the "Add your description here" line)
           FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
+          echo ${FULL_DESCRIPTION}
 
-          # Check if the MR exists in GitLab (by querying for the source branch)
+          # Create MR on GitLab if it doesn't exist
+          RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+            --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "source_branch": "'"${PR_SOURCE_BRANCH}"'",
+              "target_branch": "'"${PR_TARGET_BRANCH}"'",
+              "title": "'"${MR_TITLE}"'",
+              "description": "'"${FULL_DESCRIPTION}"'"
+            }' \
+            --request POST "https://gitlab.com/api/v4/projects/64985430/merge_requests")
+
+          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+          if [ "${HTTP_STATUS}" -ne 201 ]; then
+            exit 1
+          fi
+
+      - name: Handle PR closed
+        if: github.event.action == 'closed'
+        run: |
+          PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
           MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
             "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
-          if [ "${PR_STATE}" == "closed" ]; then
-            # PR is closed, close the MR on GitLab
-            if [ -n "${MR_ID}" ]; then
-              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
-                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-                --header "Content-Type: application/json" \
-                --data '{"state_event": "close"}' \
-                --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
+          if [ -n "${MR_ID}" ]; then
+            RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+              --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+              --header "Content-Type: application/json" \
+              --data '{"state_event": "close"}' \
+              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
 
-              HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+            HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-              if [ "${HTTP_STATUS}" -ne 200 ]; then
-                exit 1
-              fi
+            if [ "${HTTP_STATUS}" -ne 200 ]; then
+              exit 1
             fi
-          elif [ "${PR_STATE}" == "open" ]; then
-            # PR is reopened or is still open, ensure MR is not closed
-            if [ -n "${MR_ID}" ]; then
-              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
-                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-                --header "Content-Type: application/json" \
-                --data '{"state_event": "reopen"}' \
-                --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
+          fi
 
-              HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+      - name: Handle PR reopened
+        if: github.event.action == 'reopened'
+        run: |
+          PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
+          MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+            "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
-              if [ "${HTTP_STATUS}" -ne 200 ]; then
-                exit 1
-              fi
+          if [ -n "${MR_ID}" ]; then
+            RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+              --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+              --header "Content-Type: application/json" \
+              --data '{"state_event": "reopen"}' \
+              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
+
+            HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+            if [ "${HTTP_STATUS}" -ne 200 ]; then
+              exit 1
             fi
+          fi
+
+      - name: Handle PR updated (Text)
+        if: github.event.action == 'edited' | github.event.action == 'ready_for_review' | github.event.action == 'converted_to_draft'
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
+          PR_TARGET_BRANCH="main"
+          PR_DRAFT="${{ github.event.pull_request.draft }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          PR_DESCRIPTION="${{ github.event.pull_request.body }}"
+
+          TEMPLATE_URL="https://gitlab.com/api/v4/projects/64985430/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=main"
+          TEMPLATE_CONTENT=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" "${TEMPLATE_URL}")
+          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed '1s/^Add your description here//')
+
+          if [ "${PR_DRAFT}" = "true" ]; then
+            MR_TITLE="Draft: ${PR_TITLE}"
+            WIP="true"
           else
-            # PR is not closed or open, continue with create or update logic (e.g., draft or other state)
-            if [ -z "${MR_ID}" ] || [ "${MR_ID}" == "null" ]; then
-              # MR doesn't exist, create it
-              JSON_PAYLOAD=$(cat <<EOF
-              {
-                "source_branch": "${PR_SOURCE_BRANCH}",
-                "target_branch": "${PR_TARGET_BRANCH}",
-                "title": "${MR_TITLE}",
-                "description": "${FULL_DESCRIPTION}"
-              }
+            MR_TITLE="${PR_TITLE}"
+            WIP="false"
+          fi
+
+          FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
+          echo ${FULL_DESCRIPTION}
+
+          # Update the MR in GitLab
+          MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+            "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
+
+          if [ -n "${MR_ID}" ]; then
+            JSON_PAYLOAD=$(cat <<EOF
+            {
+              "title": "${MR_TITLE}",
+              "description": "${FULL_DESCRIPTION}",
+              "work_in_progress": ${WIP}
+            }
           EOF
-              )
+            )
 
-              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
-                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-                --header "Content-Type: application/json" \
-                --data "${JSON_PAYLOAD}" \
-                --request POST "https://gitlab.com/api/v4/projects/64985430/merge_requests")
+            RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+              --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+              --header "Content-Type: application/json" \
+              --data "${JSON_PAYLOAD}" \
+              --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
 
-              HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+            HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-              if [ "${HTTP_STATUS}" -ne 201 ]; then
-                exit 1
-              fi
-            else
-              # MR exists, update it
-              JSON_PAYLOAD=$(cat <<EOF
-              {
-                "title": "${MR_TITLE}",
-                "description": "${FULL_DESCRIPTION}",
-                "work_in_progress": ${WIP}
-              }
-          EOF
-              )
-
-              RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
-                --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-                --header "Content-Type: application/json" \
-                --data "${JSON_PAYLOAD}" \
-                --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
-
-              HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-              if [ "${HTTP_STATUS}" -ne 200 ]; then
-                exit 1
-              fi
+            if [ "${HTTP_STATUS}" -ne 200 ]; then
+              exit 1
             fi
           fi
