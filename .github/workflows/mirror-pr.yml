@@ -195,14 +195,20 @@ jobs:
 
           # Remove the first line ("**Add your description here**")
           TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
-          # Escape newlines and special characters properly
-          # TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed ':a;N;$!ba;s/\n/\\n/g' | jq -Rs .)
+
+          # Escape newlines and special characters properly for JSON formatting
+          TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | jq -Rs .)
 
           # Combine GitHub PR description with the GitLab template
           FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
-          # FULL_DESCRIPTION=$(echo "${FULL_DESCRIPTION}" | sed ':a;N;$!ba;s/\n/\\n/g' | jq -Rs .)
-          echo ${FULL_DESCRIPTION}
 
+          # Ensure newlines are properly escaped for the final description, preserving markdown formatting
+          FULL_DESCRIPTION=$(echo "${FULL_DESCRIPTION}" | jq -Rs .)
+
+          # Debug the final description (you can remove this later)
+          echo "Final Full Description: ${FULL_DESCRIPTION}"
+
+          # Set the MR title and WIP status based on PR draft state
           if [ "${PR_DRAFT}" = "true" ]; then
             MR_TITLE="Draft: ${PR_TITLE}"
             WIP="true"
@@ -211,32 +217,37 @@ jobs:
             WIP="false"
           fi
 
-          # Update the MR in GitLab
+          # Check if the MR exists in GitLab
           MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
             "https://gitlab.com/api/v4/projects/64985430/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
           if [ -n "${MR_ID}" ]; then
+            # Prepare the payload for updating the MR
             JSON_PAYLOAD=$(cat <<EOF
             {
               "title": "${MR_TITLE}",
-              "description": "${FULL_DESCRIPTION}",
+              "description": ${FULL_DESCRIPTION},
               "work_in_progress": ${WIP}
             }
           EOF
             )
 
             echo "Final JSON Payload: ${JSON_PAYLOAD}"
+
+            # Send the update request to GitLab
             RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
               --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
               --header "Content-Type: application/json" \
               --data "${JSON_PAYLOAD}" \
               --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
 
-            echo ${RESPONSE}
+            echo "Response: ${RESPONSE}"
 
+            # Extract and check the HTTP status
             HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-            
+
             if [ "${HTTP_STATUS}" -ne 200 ]; then
+              echo "Failed to update MR. Status code: ${HTTP_STATUS}"
               exit 1
             fi
           fi
