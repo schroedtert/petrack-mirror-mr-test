@@ -219,7 +219,7 @@ jobs:
             JSON_PAYLOAD=$(cat <<EOF
             {
               "title": "${MR_TITLE}",
-              "description": ${FULL_DESCRIPTION},
+              "description": "${FULL_DESCRIPTION}",
               "work_in_progress": ${WIP}
             }
           EOF
