@@ -94,7 +94,7 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           FORCE_PUSH: "true"
           GITLAB_HOSTNAME: "gitlab.com"
-          GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID}
+          GITLAB_PROJECT_ID: ${{ env.GITLAB_PROJECT_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Handle PR opened
