@@ -196,11 +196,11 @@ jobs:
           # Remove the first line ("**Add your description here**")
           TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
           # Escape newlines and special characters properly
-          TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed ':a;N;$!ba;s/\n/\\n/g' | jq -Rs .)
+          # TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed ':a;N;$!ba;s/\n/\\n/g' | jq -Rs .)
 
           # Combine GitHub PR description with the GitLab template
           FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
-          FULL_DESCRIPTION=$(echo "${FULL_DESCRIPTION}" | sed ':a;N;$!ba;s/\n/\\n/g' | jq -Rs .)
+          # FULL_DESCRIPTION=$(echo "${FULL_DESCRIPTION}" | sed ':a;N;$!ba;s/\n/\\n/g' | jq -Rs .)
           echo ${FULL_DESCRIPTION}
 
           if [ "${PR_DRAFT}" = "true" ]; then
