@@ -196,14 +196,9 @@ jobs:
           # Remove the first line ("**Add your description here**")
           TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed '1d')
 
-          # Escape special characters in the template content for JSON
-          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed 's/"/\\"/g')   # Escape double quotes
-          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed 's/\//\\\//g')  # Escape forward slashes (optional)
-          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed 's/\n/\\n/g')   # Escape newlines for JSON context
-          TEMPLATE_CONTENT=$(echo "$TEMPLATE_CONTENT" | sed 's/\r//g')     # Remove any carriage returns
-
           # Combine GitHub PR description with the GitLab template
           FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
+          FULL_DESCRIPTION=$(echo "$FULL_DESCRIPTION" | jq -Rs .)
           echo ${FULL_DESCRIPTION}
 
           if [ "${PR_DRAFT}" = "true" ]; then
@@ -228,8 +223,7 @@ jobs:
           EOF
             )
 
-            echo ${JSON_PAYLOAD}
-
+            echo "Final JSON Payload: ${JSON_PAYLOAD}"
             RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
               --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
               --header "Content-Type: application/json" \
