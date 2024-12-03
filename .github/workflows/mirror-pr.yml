@@ -180,7 +180,7 @@ jobs:
           fi
 
       - name: Handle PR updated (Text)
-        if: (github.event.action == 'edited') || (github.event.action == 'ready_for_review') || (github.event.action == 'converted_to_draft')
+        if: (github.event.action == 'synchronize') || (github.event.action == 'edited') || (github.event.action == 'ready_for_review') || (github.event.action == 'converted_to_draft')
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
