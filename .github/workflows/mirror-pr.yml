@@ -196,16 +196,14 @@ jobs:
           # Remove the first line ("**Add your description here**")
           TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
 
-          # Escape newlines and special characters properly for JSON formatting
-          TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | jq -Rs .)
-
-          # Combine GitHub PR description with the GitLab template
+          # Prepare the GitHub PR description and the GitLab template
           FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
 
-          # Ensure newlines are properly escaped for the final description, preserving markdown formatting
-          FULL_DESCRIPTION=$(echo "${FULL_DESCRIPTION}" | jq -Rs .)
+          # Escape special characters for JSON but keep newlines for markdown formatting
+          # Ensure we escape only the necessary characters for JSON format (quotes, backslashes)
+          FULL_DESCRIPTION=$(echo "${FULL_DESCRIPTION}" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
 
-          # Debug the final description (you can remove this later)
+          # Debug the final description
           echo "Final Full Description: ${FULL_DESCRIPTION}"
 
           # Set the MR title and WIP status based on PR draft state
@@ -226,7 +224,7 @@ jobs:
             JSON_PAYLOAD=$(cat <<EOF
             {
               "title": "${MR_TITLE}",
-              "description": ${FULL_DESCRIPTION},
+              "description": "${FULL_DESCRIPTION}",
               "work_in_progress": ${WIP}
             }
           EOF
