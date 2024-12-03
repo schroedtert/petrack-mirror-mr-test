@@ -199,11 +199,10 @@ jobs:
           # Prepare the GitHub PR description and the GitLab template
           FULL_DESCRIPTION="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---\n\n${TEMPLATE_CONTENT}"
 
-          # Escape special characters for JSON (but keep markdown formatting with actual newlines)
-          # Escape only quotes and backslashes for valid JSON formatting
+          # Escape only necessary characters: backslashes and quotes
           FULL_DESCRIPTION_ESCAPED=$(echo "${FULL_DESCRIPTION}" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
 
-          # Debug the final description
+          # Debug the final description (without extra escapes for \n)
           echo "Final Full Description: ${FULL_DESCRIPTION_ESCAPED}"
 
           # Set the MR title and WIP status based on PR draft state
