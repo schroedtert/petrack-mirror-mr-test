@@ -18,6 +18,7 @@ on:
       ]
 env:
   GITLAB_PROJECT_ID: 64985430
+  PR_TARGET_BRANCH: "main"
 
 jobs:
   check_permission:
@@ -102,7 +103,6 @@ jobs:
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
-          PR_TARGET_BRANCH="main"
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
@@ -193,7 +193,6 @@ jobs:
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
-          PR_TARGET_BRANCH="main"
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_DESCRIPTION="${{ github.event.pull_request.body }}"
