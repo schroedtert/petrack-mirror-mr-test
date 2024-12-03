@@ -85,29 +85,49 @@ jobs:
           GITLAB_PROJECT_ID: "64985430"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Create or Update Merge Request on GitLab
-      #   run: |
-      #     # Extract PR details
-      #     PR_TITLE="${{ github.event.pull_request.title }}"
-      #     PR_SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
-      #     PR_TARGET_BRANCH="master"
-      #     PR_DRAFT="${{ github.event.pull_request.draft }}"
-      #     PR_URL="${{ github.event.pull_request.html_url }}"
+      - name: Create or Update Merge Request on GitLab
+        run: |
+          # Extract PR details
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
+          PR_TARGET_BRANCH="main"
+          PR_DRAFT="${{ github.event.pull_request.draft }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
 
-      #     # Define draft state in GitLab
-      #     if [ "$PR_DRAFT" = "true" ]; then
-      #       MR_TITLE="Draft: $PR_TITLE"
-      #     else
-      #       MR_TITLE="$PR_TITLE"
-      #     fi
+          # Define draft state in GitLab
+          if [ "$PR_DRAFT" = "true" ]; then
+            MR_TITLE="Draft: $PR_TITLE"
+          else
+            MR_TITLE="$PR_TITLE"
+          fi
 
-      #     # Call GitLab API to create or update the MR
-      #     curl --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-      #          --header "Content-Type: application/json" \
-      #          --data "{
-      #            \"source_branch\": \"$PR_SOURCE_BRANCH\",
-      #            \"target_branch\": \"$PR_TARGET_BRANCH\",
-      #            \"title\": \"$MR_TITLE\",
-      #            \"description\": \"Automatically created from GitHub PR: $PR_URL\"
-      #          }" \
-      #          --request POST "https://gitlab.com/api/v4/projects/${{ secrets.GITLAB_PROJECT_ID }}/merge_requests"
+          # Prepare the JSON payload for GitLab API
+          JSON_PAYLOAD=$(cat <<EOF
+          {
+            "source_branch": "$PR_SOURCE_BRANCH",
+            "target_branch": "$PR_TARGET_BRANCH",
+            "title": "$MR_TITLE",
+            "description": "Automatically created from GitHub PR: $PR_URL"
+          }
+          EOF
+          )
+          # Call GitLab API to create or update the MR and store the response
+          RESPONSE=$(curl --verbose --write-out "HTTPSTATUS:%{http_code}" \
+            --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+            --header "Content-Type: application/json" \
+            --data "$JSON_PAYLOAD" \
+            --request POST "https://gitlab.com/api/v4/projects/64985430/merge_requests")
+
+          # Extract the response body and HTTP status code
+          RESPONSE_BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS:.*//g')
+          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+          # Output the response for debugging
+          echo "Response Body: $RESPONSE_BODY"
+          echo "HTTP Status Code: $HTTP_STATUS"
+
+          # Check for successful status code (e.g., 201 Created)
+          if [ "$HTTP_STATUS" -ne 201 ]; then
+            echo "Failed to create or update the merge request. Status code: $HTTP_STATUS"
+            exit 1
+          fi
