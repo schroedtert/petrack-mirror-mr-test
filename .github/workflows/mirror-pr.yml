@@ -197,10 +197,10 @@ jobs:
           TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
 
           # Prepare the GitHub PR description and the GitLab template
-          FULL_DESCRIPTION_ESCAPED="Automatically created from GitHub PR: ${PR_URL}\\n\\n${PR_DESCRIPTION}\\n\\n---"
+          FULL_DESCRIPTION_ESCAPED="Automatically created from GitHub PR: ${PR_URL}\n\n${PR_DESCRIPTION}\n\n---"
 
           # Escape only necessary characters: backslashes and quotes
-          # FULL_DESCRIPTION_ESCAPED=$(echo "${FULL_DESCRIPTION}" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+          FULL_DESCRIPTION_ESCAPED=${FULL_DESCRIPTION//$'\n'/\\n}
 
           # Debug the final description (without extra escapes for \n)
           echo "Final Full Description: ${FULL_DESCRIPTION_ESCAPED}"
