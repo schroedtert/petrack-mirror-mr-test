@@ -224,8 +224,10 @@ jobs:
               --data "${JSON_PAYLOAD}" \
               --request PUT "https://gitlab.com/api/v4/projects/64985430/merge_requests/${MR_ID}")
 
-            HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+            echo ${RESPONSE}
 
+            HTTP_STATUS=$(echo "${RESPONSE}" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+            
             if [ "${HTTP_STATUS}" -ne 200 ]; then
               exit 1
             fi
