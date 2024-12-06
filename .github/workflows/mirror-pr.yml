@@ -115,8 +115,7 @@ jobs:
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
-
-          PR_DESCRIPTION_ESCAPED=$(jq -Rsa . <<< "${{ inputs.pr_description }}")
+          PR_DESCRIPTION_ESCAPED=$(jq -Rsa . <<< "${{ github.event.pull_request.body }}")
 
           # Fetch the GitLab MR template
           TEMPLATE_URL="https://gitlab.com/api/v4/projects/${{ env.GITLAB_PROJECT_ID }}/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${{ env.PR_TARGET_BRANCH }}"
