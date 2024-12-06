@@ -100,7 +100,10 @@ jobs:
 
       - name: Handle PR opened
         if: github.event.action == 'opened'
+        shell: bash
         run: |
+          set -x
+
           # Define variables
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
