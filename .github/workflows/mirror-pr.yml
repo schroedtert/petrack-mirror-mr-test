@@ -105,9 +105,9 @@ jobs:
           pr_title: ${{ github.event.pull_request.title }}
           pr_url: ${{ github.event.pull_request.html_url }}
           pr_description: ${{ github.event.pull_request.body }}
-          gitlab_project_id: ${{ secrets.GITLAB_PROJECT_ID }}
+          gitlab_project_id: ${{ env.GITLAB_PROJECT_ID }}
           gitlab_token: ${{ secrets.GITLAB_TOKEN }}
-          pr_target_branch: ${PR_TARGET_BRANCH}
+          pr_target_branch: ${{ env.TARGET_BRANCH }}
 
       - name: Handle PR opened
         if: github.event.action == 'opened'
