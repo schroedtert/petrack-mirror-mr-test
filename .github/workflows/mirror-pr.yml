@@ -98,6 +98,17 @@ jobs:
           GITLAB_PROJECT_ID: ${{ env.GITLAB_PROJECT_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare PR description
+        id: prepare_pr_description
+        uses: ./.github/actions/prepare-pr-description
+        with:
+          pr_title: ${{ github.event.pull_request.title }}
+          pr_url: ${{ github.event.pull_request.html_url }}
+          pr_description: ${{ github.event.pull_request.body }}
+          gitlab_project_id: ${{ secrets.GITLAB_PROJECT_ID }}
+          gitlab_token: ${{ secrets.GITLAB_TOKEN }}
+          pr_target_branch: ${PR_TARGET_BRANCH}
+
       - name: Handle PR opened
         if: github.event.action == 'opened'
         shell: bash
@@ -110,8 +121,7 @@ jobs:
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
 
-          # Escape PR_DESCRIPTION using jq for JSON safety
-          PR_DESCRIPTION=$(jq -Rsa . <<< "${{ github.event.pull_request.body }}")
+          PR_DESCRIPTION=${{ steps.prepare_pr_description.outputs.full_description }}
 
           # Fetch the GitLab MR template
           TEMPLATE_URL="https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
@@ -122,18 +132,6 @@ jobs:
             echo "Failed to fetch GitLab MR template from ${TEMPLATE_URL}"
             exit 1
           fi
-
-          # Remove the first line of the template ("**Add your description here**")
-          TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
-
-          # Combine the PR description and the template content
-          FULL_DESCRIPTION=$(printf "Automatically created from GitHub PR: %s\n\n%s\n\n---\n\n%s" \
-            "$PR_URL" "$(echo $PR_DESCRIPTION | jq -r)" "$TEMPLATE_CONTENT")
-
-          # Escape the full description using jq for JSON safety
-          FULL_DESCRIPTION_ESCAPED=$(jq -Rsa . <<< "$FULL_DESCRIPTION")
-
-          echo "Escaped description: $FULL_DESCRIPTION_ESCAPED"
 
           # Define title and WIP status
           if [ "${PR_DRAFT}" = "true" ]; then
@@ -187,6 +185,9 @@ jobs:
             if [ "${HTTP_STATUS}" -ne 200 ]; then
               exit 1
             fi
+          else
+            echo "Could not find a MR for this PR, make sure it is created."
+            exit 1
           fi
 
       - name: Handle PR updated (Text)
@@ -200,9 +201,7 @@ jobs:
           PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
           PR_DRAFT="${{ github.event.pull_request.draft }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
-
-          # Escape PR_DESCRIPTION using jq for JSON safety
-          PR_DESCRIPTION=$(jq -Rsa . <<< "${{ github.event.pull_request.body }}")
+          PR_DESCRIPTION=${{ steps.prepare_pr_description.outputs.full_description }}
 
           # Fetch the GitLab MR template
           TEMPLATE_URL="https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/repository/files/.gitlab%2Fmerge_request_templates%2Fdefault.md/raw?ref=${PR_TARGET_BRANCH}"
@@ -213,18 +212,6 @@ jobs:
             echo "Failed to fetch GitLab MR template from ${TEMPLATE_URL}"
             exit 1
           fi
-
-          # Remove the first line of the template ("**Add your description here**")
-          TEMPLATE_CONTENT=$(echo "${TEMPLATE_CONTENT}" | sed '1d')
-
-          # Combine the PR description and the template content
-          FULL_DESCRIPTION=$(printf "Automatically updated from GitHub PR: %s\n\n%s\n\n---\n\n%s" \
-            "$PR_URL" "$(echo $PR_DESCRIPTION | jq -r)" "$TEMPLATE_CONTENT")
-
-          # Escape the full description using jq for JSON safety
-          FULL_DESCRIPTION_ESCAPED=$(jq -Rsa . <<< "$FULL_DESCRIPTION")
-
-          echo "Escaped description: $FULL_DESCRIPTION_ESCAPED"
 
           # Define title and WIP status
           if [ "${PR_DRAFT}" = "true" ]; then
