@@ -148,16 +148,13 @@ jobs:
           RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
             --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
             --header "Content-Type: application/json" \
-            --data-binary @- <<EOF
-          {
-            "source_branch": "${PR_SOURCE_BRANCH}",
-            "target_branch": "${PR_TARGET_BRANCH}",
-            "title": "${MR_TITLE}",
-            "description": ${FULL_DESCRIPTION_ESCAPED},
-            "work_in_progress": ${WIP}
-          }
-          EOF
-          )
+            --data '{
+              "source_branch": "'"${PR_SOURCE_BRANCH}"'",
+              "target_branch": "'"${PR_TARGET_BRANCH}"'",
+              "title": "'"${MR_TITLE}"'",
+              "description": '"${FULL_DESCRIPTION_ESCAPED}"',
+              "work_in_progress": "'"${WIP}"'"
+            }' "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests")
 
           # Extract the HTTP status code
           HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
