@@ -15,6 +15,7 @@ on:
         ready_for_review,
         converted_to_draft,
         edited,
+        labeled,
       ]
 env:
   GITLAB_PROJECT_ID: 64985430
@@ -99,6 +100,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Open or update MR
+        if: (github.event.action == 'opened') ||
+          (github.event.action == 'synchronize') ||
+          (github.event.action == 'ready_for_review') ||
+          (github.event.action == 'converted_to_draft') ||
+          (github.event.action == 'edited') ||
+          (github.event.action == 'labeled')
         shell: bash
         run: |
           set -x
@@ -130,6 +137,10 @@ jobs:
 
           # Escape the full description using jq for JSON safety
           FULL_DESCRIPTION_ESCAPED=$(jq -Rsa . <<< "${FULL_DESCRIPTION}")
+
+          PR_SOURCE_BRANCH="PullRequest_${{ github.event.number }}"
+          MR_ID=$(curl --silent --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
+            "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/merge_requests?source_branch=${PR_SOURCE_BRANCH}" | jq '.[0].iid')
 
           # Define title and WIP status
           if [ "${PR_DRAFT}" = "true" ]; then
