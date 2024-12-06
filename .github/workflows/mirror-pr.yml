@@ -179,7 +179,7 @@ jobs:
             fi
           else
             # Create the Merge Request in GitLab
-            echp "Creating new Pull Request"
+            echo "Creating new Pull Request"
             RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
               --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
               --header "Content-Type: application/json" \
